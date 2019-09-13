@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Sep  9 19:34:50 2019
+
+@author: egeerdem
+"""
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.special import sph_harm, lpmv
+from mayavi import mlab
+from mpl_toolkits.mplot3d import Axes3D
+
+pi = np.pi
+
+def D_steer(cn, teta, phi, teta0, phi0, j):
+
+    s_terms = 0
+    d = 0
+    counter = 0
+
+    yn_steered = np.ones((5,j,j))
+    for n in range(5):
+        for m in range(-n,n+1):
+            
+            
+            steer = np.sqrt(np.math.factorial(n-m)/np.math.factorial(n+m))*lpmv((m),n,np.cos(teta0))*(np.cos(m*phi0)*sph_harm(m, n, phi, teta).real +np.sin((m)*phi0)*sph_harm(m, n, phi, teta).imag)           
+            s_terms = s_terms + steer          
+            counter = counter + 1
+         
+        yn_steered[n] = s_terms
+        
+        d = d + float(cn[n])*yn_steered[n]            
+        s_terms = 0       
+  
+    return d
+
+
+def D_unsteered(d_coeffs, teta):
+    Y00 = np.sqrt(1 / (4 * pi))
+    Y01 = np.sqrt(3 / (4 * pi)) * np.cos(teta)
+    Y02 = np.sqrt(5 / (16 * pi)) * (3 * (np.cos(teta) ** 2) - 1)
+    Y03 = np.sqrt(7 / (16 * pi)) * (5 * (np.cos(teta) ** 3) - 3 * np.cos(teta))
+    Y04 = np.sqrt(9 / (256 * pi)) * (35 * (np.cos(teta) ** 4) - 30 * (np.cos(teta) ** 2) + 3)
+
+    d_sp = d_coeffs[0] * Y00 + d_coeffs[1] * Y01 + d_coeffs[2] * Y02 + d_coeffs[3] * Y03 +\
+           d_coeffs[4] * Y04
+
+    return (d_sp)
+
+teta, phi = np.mgrid[0:np.pi:101j, 0:2 * np.pi:101j]
+
+x = np.sin(teta) * np.cos(phi)
+y = np.sin(teta) * np.sin(phi)
+z = np.cos(teta)
+
+# How much do you want to rotate the pattern, in teta and phi ? (teta: elevation [0,pi], phi: azimuth [0, 2pi] , spherical coordinates)
+rotate_teta = np.pi/2
+rotate_phi = np.pi/4
+
+D_norm_coeffs = np.array([[0.256],[0.505], [0.696], [0.330], [-0.006]])  # directivity pattern coefficients of the form dir_pattern :
+# dir_pattern = (- 0.006*np.cos(teta)**4 + 0.330*np.cos(teta)**3
+#      + 0.696*np.cos(teta)**2 + 0.505*np.cos(teta)
+#      + 0.256 )
+
+mlab.figure(6, bgcolor=(1, 1, 1), fgcolor=(0, 0, 0), size=(400, 300))
+
+#original pattern
+s = D_unsteered(D_norm_coeffs,teta)
+mlab.mesh(s * x , s * y , s * z, colormap='Spectral')
+
+#steered (rotated) pattern
+mic = D_steer(D_norm_coeffs, teta, phi, rotate_teta, rotate_phi,len(teta))
+mlab.mesh(mic * x , mic * y , mic * z, colormap='binary')
+
+mlab.show()
